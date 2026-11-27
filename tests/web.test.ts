@@ -198,6 +198,19 @@ test("after five wrong codes the address's code is refused until a new one is se
   assert.equal((await verification.confirm("pablo@example.com", "H7QR2T")).ok, true);
 });
 
+test("codes typed together each take one of the five tries before they are compared", async () => {
+  const { verification, records } = studio({ list: ["X4KM9P", "H7QR2T"] });
+  await verification.start("pablo@example.com");
+  const typed = Array.from({ length: 40 }, (_, index) => (index === 30 ? "X4KM9P" : `WRONG${String(index).padStart(2, "0")}`));
+  const answers = await Promise.all(typed.map((code) => verification.confirm("pablo@example.com", code)));
+  assert.equal(answers[30].ok, false, "the right code, typed 31st of forty at once, is not compared");
+  assert.equal((await records.collection(EMAIL_CODES_COLLECTION).findOne({ email: "pablo@example.com" }))?.failures, MAXIMUM_FAILURES);
+  // Of two right codes typed at once, one confirms the address.
+  await verification.start("pablo@example.com");
+  const twice = await Promise.all([verification.confirm("pablo@example.com", "H7QR2T"), verification.confirm("pablo@example.com", "H7QR2T")]);
+  assert.deepEqual(twice.map((answer) => answer.ok).sort(), [false, true]);
+});
+
 test("codes are kept in the store, so a code sent by one server instance is confirmed by another", async () => {
   let clock = START;
   const now = () => new Date(clock);

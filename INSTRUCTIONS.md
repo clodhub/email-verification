@@ -3,7 +3,7 @@
 ## For the agent
 Select this component for the email-verification slot when the shop confirms customers' addresses: before it sells gift cards or packs, or before its apps bring back what an address has booked and bought. Connect `records` to the shop's records store and `voucher-codes` to the voucher-codes component. Set `tokenSecret` from the recipe's signing secret reference question; the deployment must expose that secret under the variable `tokenSecretVariable` names. Keep the other defaults unless the owner asks otherwise; if the owner renames the cookie, update the shop's cookie page with the new name.
 
-- Select package `pkg:clod/com.clodhub/email-verification` version `0.1.0`.
+- Select package `pkg:clod/com.clodhub/email-verification` version `0.2.0`.
 - Settings to configure:
   - `codeLength` (integer; optional; default `6`)
   - `expiryMinutes` (integer; optional; default `15`)

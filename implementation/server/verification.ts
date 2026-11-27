@@ -9,6 +9,7 @@ export type EmailVerificationSettings = { codeLength: number; expiryMinutes: num
 type CodeDocument = { _id: string; email: string; code: string; createdAt: Date; expiresAt: Date; failures: number };
 type CodeCollection = {
   updateOne(filter: Record<string, unknown>, update: { $set?: Record<string, unknown>; $inc?: Record<string, number> }, options?: { upsert?: boolean }): Promise<unknown>;
+  findOneAndUpdate(filter: Record<string, unknown>, update: { $inc: Record<string, number> }, options: { returnDocument: "after" }): Promise<CodeDocument | null>;
   deleteOne(filter: Record<string, unknown>): Promise<{ deletedCount: number }>;
   createIndexes(indexes: Array<{ key: Record<string, 1 | -1>; unique?: boolean; expireAfterSeconds?: number }>): Promise<void>;
 };
@@ -196,13 +197,13 @@ export function createEmailVerification(deps: EmailVerificationDeps): EmailVerif
       const code = typeof typed === "string" ? typed.trim().toUpperCase() : "";
       if (email === null || code === "") return { ok: false, code: "INVALID_CODE" };
       if (secret === null) return { ok: false, code: "NOT_CONFIGURED" };
-      // The store removes expired codes up to a minute late, so the expiry is part of the match.
+      // The store removes expired codes up to a minute late, so the expiry is part of the match. Each try takes one of the code's
+      // tries before it is compared, so tries sent together cannot pass MAXIMUM_FAILURES; the right code is then used once.
       const live = { email, expiresAt: { $gt: now() }, failures: { $lt: MAXIMUM_FAILURES } };
-      const { deletedCount } = await collection.deleteOne({ ...live, code });
-      if (deletedCount !== 1) {
-        await collection.updateOne(live, { $inc: { failures: 1 } });
-        return { ok: false, code: "INVALID_CODE" };
-      }
+      const counted = await collection.findOneAndUpdate(live, { $inc: { failures: 1 } }, { returnDocument: "after" });
+      if (counted === null || !sameBytes(encoder.encode(counted.code), encoder.encode(code))) return { ok: false, code: "INVALID_CODE" };
+      const { deletedCount } = await collection.deleteOne({ _id: counted._id, code: counted.code });
+      if (deletedCount !== 1) return { ok: false, code: "INVALID_CODE" };
       const expires = Math.floor(now().getTime() / 1000) + lifetime;
       const token = `${base64url(encoder.encode(email))}.${expires}.${base64url(await signature(email, expires))}`;
       const setCookie = serialiseCookie(settings.cookieName, token, { maxAge: lifetime, secure: options.secure === true, httpOnly: true, sameSite: "Lax", path: "/" });
