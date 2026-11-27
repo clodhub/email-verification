@@ -1,0 +1,368 @@
+{
+  "name": "email-verification",
+  "version": "0.1.0",
+  "sourceRevision": "219d7dc979278f850fe0efd83c5e11eee26c3217",
+  "title": "Email verification",
+  "description": "Short codes sent to an email address and kept in a records store until they expire, then a signed token that names the confirmed address for half an hour, as a browser's cookie or for an app.",
+  "facilities": [
+    {
+      "id": "email-verification",
+      "description": "Give an address a short expiring code, confirm it once, and name the confirmed address for a while with a signed token, a browser's cookie or an app's"
+    }
+  ],
+  "provides": [
+    {
+      "id": "email-verification",
+      "type": "com.clodhub/email-verification",
+      "version": "1.0.0",
+      "path": "interfaces/email-verification.json"
+    }
+  ],
+  "requires": [
+    {
+      "id": "records",
+      "type": "com.clodhub/records",
+      "version": "1.0.0",
+      "path": "interfaces/required-records.json"
+    },
+    {
+      "id": "voucher-codes",
+      "type": "com.clodhub/voucher-codes",
+      "version": "1.0.0",
+      "path": "interfaces/required-voucher-codes.json"
+    }
+  ],
+  "collect": [
+    {
+      "id": "codeLength",
+      "type": "integer",
+      "grammar": "integer",
+      "required": false,
+      "secret": false,
+      "default": 6
+    },
+    {
+      "id": "expiryMinutes",
+      "type": "integer",
+      "grammar": "integer",
+      "required": false,
+      "secret": false,
+      "default": 15
+    },
+    {
+      "id": "cookieName",
+      "type": "string",
+      "grammar": "identifier",
+      "required": false,
+      "secret": false,
+      "default": "shop_email_verified"
+    },
+    {
+      "id": "tokenMinutes",
+      "type": "integer",
+      "grammar": "integer",
+      "required": false,
+      "secret": false,
+      "default": 30
+    },
+    {
+      "id": "tokenSecretVariable",
+      "type": "string",
+      "grammar": "environment",
+      "required": false,
+      "secret": false,
+      "default": "EMAIL_TOKEN_SECRET"
+    },
+    {
+      "id": "tokenSecret",
+      "type": "string",
+      "grammar": "identifier",
+      "required": false,
+      "secret": true
+    }
+  ],
+  "dependencies": [],
+  "tools": {
+    "node": "26.5"
+  },
+  "suites": [
+    {
+      "id": "web",
+      "argv": [
+        "node",
+        "--test",
+        "tests/web.test.ts"
+      ]
+    }
+  ],
+  "templates": [
+    "implementation/server/settings.ts"
+  ],
+  "text": {
+    "purpose": "Before a shop sells a gift card to an address, or shows an app what that address has booked and bought, it confirms that the customer can read mail there: the card and its receipt then reach them, and nobody is shown another's bookings. `start(email)` gives the address a new code of `codeLength` characters from the voucher-codes component, valid for `expiryMinutes`, in place of any earlier code; the application emails a link made by `verificationPath`. `confirm(email, code)` accepts the current code once and before it expires (five wrong codes end it) and returns a token that names the address for `tokenMinutes`: an HMAC-SHA-256 of the address and its end, signed with the server's token secret, so nobody can make one for an address they did not confirm. The same token is the browser's cookie (`setCookie`, HttpOnly) and what an app sends with each request that needs the confirmed address; `verify(token)` and `verifiedEmail(cookieHeader)` give the address back, or nothing for a forged or expired token. Codes are documents of the records store's `emailCodes` collection with a time-to-live index, so every server instance sees them, and the expiry is also checked on every confirmation because stores remove expired documents late.",
+    "userInputs": "`codeLength` (4 to 12, default 6) and `expiryMinutes` (1 to 1440, default 15) shape the code; `cookieName` (an identifier, default `shop_email_verified`) names the cookie, and `tokenMinutes` (5 to 1440, default 30) is how long a token and its cookie name the address. `tokenSecretVariable` names the environment variable that holds the signing secret (`EMAIL_TOKEN_SECRET`, at least 32 characters, such as the output of `openssl rand -base64 32`), and `tokenSecret` is the reference to that secret, supplied by the deployment and never by value. List the cookie on the shop's cookie page.",
+    "integration": "Server only. Create the service once per process with `createEmailVerification({ records, codes })`: the shop's records store and the voucher-codes component. The send route calls `start(email)` and, when it is ok, emails `verificationPath(page, email, code)`; the confirm route (or the page the link opens) calls `confirm(email, code, { secure })` with `secure` true on an https site, returns `setCookie` as the response's `Set-Cookie` header and `token` with `expiresAt` in its body. The purchase route compares the address `verify(token)` gives for the token an app sends, or `verifiedEmail(request cookie header)` gives for a browser, with the buyer's address; a route that answers what an address has booked and bought takes the address `verify(token)` gives. Without the secret, `start` and `confirm` answer `NOT_CONFIGURED`; `configured()` says so in advance.",
+    "infrastructure": "No service or account: codes are kept in the records store; the application sends the email through its mail component. The token secret lives in the host's environment variables. Rate-limit the send route so nobody can flood an address with codes.",
+    "verification": "`tests/web.test.ts` checks the settings template and its defaults, address normalising, verification links, the cookie writer and reader, the indexes, one code per address replaced by each start (also when two starts race), single-use confirmation that ignores case and surrounding space, the token and its cookie (HttpOnly, with and without `Secure`) against an HMAC computed with node:crypto, forged, altered, foreign, too long-lived and expired tokens and the plain address naming nothing, no secret giving `NOT_CONFIGURED` and a short one refused at start, the limit of five wrong codes, a code sent by one server instance and confirmed by another, expiry with and without a store that removes expired codes at once, settings reaching the service, export and import with the records store, and the example's two routes. The email-verification class suite (`classes/email-verification-class/check.mjs`) checks the shared contract against any implementation.",
+    "scenarios": "Pablo buys a gift card at Example Studio and gives `pablo@example.com`; the shop emails him a link with the code `X4KM9P`. He opens it on his phone a few minutes later, served by another server instance than the one that sent it: the code is confirmed, the cookie names his address for 30 minutes, and the purchase continues without asking again. In the studio's app, the same confirmation gives the app the token it sends with the purchase. A code opened after 15 minutes, or a second time, is refused and he asks for a new one.",
+    "updates": "Patch updates replace the files only. Codes are short-lived documents of the records store's `emailCodes` collection (`interfaces/email-code.schema.json`); an export and import moves the unexpired ones. Removing the component leaves at most the last 15 minutes of codes, which the store's time-to-live index removes; drop the collection to remove them at once. Tokens live only in shoppers' cookies and apps, for 30 minutes; a new token secret ends them all."
+  },
+  "agentInstructions": "Select this component for the email-verification slot when the shop confirms customers' addresses: before it sells gift cards or packs, or before its apps bring back what an address has booked and bought. Connect `records` to the shop's records store and `voucher-codes` to the voucher-codes component. Set `tokenSecret` from the recipe's signing secret reference question; the deployment must expose that secret under the variable `tokenSecretVariable` names. Keep the other defaults unless the owner asks otherwise; if the owner renames the cookie, update the shop's cookie page with the new name.",
+  "developerInstructions": "Supply the token secret as an environment variable (`EMAIL_TOKEN_SECRET` by default) in the host's settings, never in the repository; make it with `openssl rand -base64 32`. Add the two routes (send and confirm) and the check before checkout or before answering what an address has, send the email with the shop's mail component, pass `secure: true` on an https site, and rate-limit the send route.",
+  "suitability": {
+    "format": 1,
+    "jobs": [
+      "email-verification"
+    ],
+    "profiles": [
+      {
+        "id": "any",
+        "load": {},
+        "cost": "none",
+        "regions": [
+          "any"
+        ],
+        "compliance": []
+      }
+    ],
+    "notes": "No provider of its own: codes are kept by the records store and the email is sent by the application's mail component, whose own profiles carry the limits."
+  },
+  "migration": {
+    "format": 1,
+    "stores": [
+      {
+        "id": "emailCodes",
+        "schema": {
+          "name": "com.clodhub/email-code",
+          "version": "1.0.0",
+          "file": "interfaces/email-code.schema.json"
+        }
+      }
+    ],
+    "export": [
+      {
+        "format": "ndjson",
+        "portable": true,
+        "operation": "exportAll",
+        "description": "The records store's exportAll: the emailCodes collection's indexes, then one document line per unexpired code, dates as {\"$date\": ISO text}."
+      }
+    ],
+    "import": [
+      {
+        "format": "ndjson",
+        "portable": true,
+        "operation": "importAll"
+      }
+    ],
+    "steps": [],
+    "verification": {
+      "counts": true,
+      "checksums": "none: compare the exported lines of the emailCodes collection in the source and the destination",
+      "sampleReadBack": 20,
+      "endToEnd": "tests/web.test.ts"
+    },
+    "limits": {
+      "maxMegabytes": 10,
+      "requiresStop": false,
+      "cannotPreserve": [
+        "codes that expire between the export and the import",
+        "codes given or confirmed while the export runs"
+      ]
+    },
+    "retention": {
+      "afterRemovalDays": 0
+    }
+  },
+  "infrastructure": {
+    "accounts": [],
+    "deployedReason": "No deployed service: a library the application's server code calls; codes live in the records store."
+  },
+  "modules": {
+    "server": "server/index.ts"
+  },
+  "toolchains": {
+    "server": [
+      {
+        "name": "node",
+        "versionRange": ">=26.5.0 <27.0.0",
+        "probe": [
+          "node",
+          "--version"
+        ],
+        "install": {
+          "macos": [
+            "brew",
+            "install",
+            "node"
+          ],
+          "windows": [
+            "winget",
+            "install",
+            "--exact",
+            "--id",
+            "OpenJS.NodeJS"
+          ],
+          "linux": null
+        },
+        "manual": "Without the package manager, install Node 26 from nodejs.org (the installer, or the zip or tar archive with its folder put first on PATH); on Linux also from the NodeSource repository."
+      }
+    ]
+  },
+  "upstream": [],
+  "compatibility": {
+    "runtimes": {
+      "node": ">=26.5.0 <27.0.0"
+    },
+    "frameworks": {},
+    "dependencies": [],
+    "styles": {
+      "scope": "none",
+      "namespaces": [],
+      "conflicts": []
+    }
+  },
+  "maintenance": {
+    "owners": [
+      "Level N Ltd"
+    ],
+    "contact": "https://github.com/clodhub/email-verification/issues",
+    "repository": "https://github.com/clodhub/email-verification",
+    "updates": {
+      "source": "https://github.com/clodhub/email-verification/releases",
+      "strategy": "manual"
+    }
+  },
+  "classes": [
+    {
+      "reference": {
+        "name": "pkg:clod/com.clodhub/email-verification-class",
+        "version": "1.0.0",
+        "digest": "f7a454e1a043a7a7a84b3ca3a210549ce56144604e4d80e9dac71e4706221275"
+      },
+      "descriptor": {
+        "format": 3,
+        "name": "pkg:clod/com.clodhub/email-verification-class",
+        "version": "1.0.0",
+        "title": "Email verification",
+        "summary": "Short codes sent to an email address, kept in a records store until they expire, and a signed token that names the confirmed address, as a browser's cookie or for an app",
+        "category": "people-and-accounts/identity-verification",
+        "presentation": "none",
+        "provides": [
+          {
+            "type": "com.clodhub/email-verification",
+            "version": "1.0.0",
+            "path": "classes/email-verification-class/email-verification.json",
+            "modules": {
+              "server": [
+                "server/index.ts"
+              ]
+            }
+          }
+        ],
+        "requires": [
+          {
+            "type": "com.clodhub/records",
+            "version": "1.0.0"
+          },
+          {
+            "type": "com.clodhub/voucher-codes",
+            "version": "1.0.0"
+          }
+        ],
+        "settings": {
+          "type": "object",
+          "properties": {
+            "codeLength": {
+              "type": "integer"
+            },
+            "expiryMinutes": {
+              "type": "integer"
+            },
+            "cookieName": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+            },
+            "tokenMinutes": {
+              "type": "integer"
+            },
+            "tokenSecret": {
+              "type": "string",
+              "pattern": "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        },
+        "inventory": [
+          {
+            "path": "classes/email-verification-class/check.mjs",
+            "digest": "ee4571526e1a7ecafa0ebe47532d51c88df7b5ba290445a5fc1145ba5d2a070a"
+          },
+          {
+            "path": "classes/email-verification-class/email-code.schema.json",
+            "digest": "0dbd2ef6d6f9dd5af6619153af077525cc6682a4ad25a75f549851b6d1f5a89b"
+          },
+          {
+            "path": "classes/email-verification-class/email-verification.json",
+            "digest": "5e77286dc455df43d473b4f4c0187a43a1395337a37a47d47d8d05d1cd224027"
+          },
+          {
+            "path": "classes/email-verification-class/records.ts",
+            "digest": "f4989bd36054bae7fd4fe56744d16050d9bb464d5f79081fbd372635975c91c3"
+          },
+          {
+            "path": "classes/email-verification-class/runtime.mjs",
+            "digest": "1d85f0dae92d5c6c859cd48a4211a933718ae3e168554a2b00806183c4b661f0"
+          }
+        ],
+        "verification": [
+          {
+            "id": "shared",
+            "root": "package",
+            "argv": [
+              "node",
+              "classes/email-verification-class/check.mjs"
+            ],
+            "cwd": ".",
+            "prepare": [],
+            "tools": {
+              "node": "26.5"
+            },
+            "fixtures": [
+              "classes/email-verification-class/check.mjs",
+              "classes/email-verification-class/records.ts"
+            ],
+            "locks": [],
+            "network": false,
+            "timeoutSeconds": 60,
+            "expectedExit": 0,
+            "scope": "required-local",
+            "requirements": []
+          }
+        ]
+      }
+    }
+  ],
+  "implements": [
+    {
+      "name": "pkg:clod/com.clodhub/email-verification-class",
+      "version": "1.0.0",
+      "digest": "f7a454e1a043a7a7a84b3ca3a210549ce56144604e4d80e9dac71e4706221275"
+    }
+  ],
+  "release": {
+    "channel": "features",
+    "fixes": []
+  },
+  "images": [],
+  "vulnerabilityWaivers": [],
+  "supportedPlatforms": [
+    "server"
+  ],
+  "licence": "Apache-2.0",
+  "licenceFile": "LICENCE",
+  "noticeFile": "NOTICE",
+  "platforms": [
+    "server"
+  ]
+}

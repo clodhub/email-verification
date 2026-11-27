@@ -1,0 +1,87 @@
+{
+  "id": "com.clodhub.email-verification",
+  "name": "Email verification",
+  "kind": "component",
+  "status": "example",
+  "package": "pkg:clod/com.clodhub/email-verification",
+  "version": "0.1.0",
+  "ports": [
+    {
+      "id": "records",
+      "name": "Records",
+      "direction": "input",
+      "kind": "interface",
+      "type": "com.clodhub/records",
+      "version": "1.0.0",
+      "required": true,
+      "cardinality": "one"
+    },
+    {
+      "id": "voucher-codes",
+      "name": "Voucher codes",
+      "direction": "input",
+      "kind": "interface",
+      "type": "com.clodhub/voucher-codes",
+      "version": "1.0.0",
+      "required": true,
+      "cardinality": "one"
+    },
+    {
+      "id": "email-verification",
+      "name": "Email verification",
+      "direction": "output",
+      "kind": "interface",
+      "type": "com.clodhub/email-verification",
+      "version": "1.0.0"
+    }
+  ],
+  "settings": [
+    {
+      "id": "codeLength",
+      "name": "Codelength",
+      "type": "number",
+      "required": false,
+      "secret": false,
+      "default": 6
+    },
+    {
+      "id": "expiryMinutes",
+      "name": "Expiryminutes",
+      "type": "number",
+      "required": false,
+      "secret": false,
+      "default": 15
+    },
+    {
+      "id": "cookieName",
+      "name": "Cookiename",
+      "type": "string",
+      "required": false,
+      "secret": false,
+      "default": "shop_email_verified"
+    },
+    {
+      "id": "tokenMinutes",
+      "name": "Tokenminutes",
+      "type": "number",
+      "required": false,
+      "secret": false,
+      "default": 30
+    },
+    {
+      "id": "tokenSecretVariable",
+      "name": "Tokensecretvariable",
+      "type": "string",
+      "required": false,
+      "secret": false,
+      "default": "EMAIL_TOKEN_SECRET"
+    },
+    {
+      "id": "tokenSecret",
+      "name": "Tokensecret",
+      "type": "string",
+      "required": false,
+      "secret": true
+    }
+  ]
+}

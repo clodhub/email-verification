@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "stores": [
+    {
+      "id": "emailCodes",
+      "schema": {
+        "name": "com.clodhub/email-code",
+        "version": "1.0.0",
+        "file": "interfaces/email-code.schema.json"
+      }
+    }
+  ],
+  "export": [
+    {
+      "format": "ndjson",
+      "portable": true,
+      "operation": "exportAll",
+      "description": "The records store's exportAll: the emailCodes collection's indexes, then one document line per unexpired code, dates as {\"$date\": ISO text}."
+    }
+  ],
+  "import": [
+    {
+      "format": "ndjson",
+      "portable": true,
+      "operation": "importAll"
+    }
+  ],
+  "steps": [],
+  "verification": {
+    "counts": true,
+    "checksums": "none: compare the exported lines of the emailCodes collection in the source and the destination",
+    "sampleReadBack": 20,
+    "endToEnd": "tests/web.test.ts"
+  },
+  "limits": {
+    "maxMegabytes": 10,
+    "requiresStop": false,
+    "cannotPreserve": [
+      "codes that expire between the export and the import",
+      "codes given or confirmed while the export runs"
+    ]
+  },
+  "retention": {
+    "afterRemovalDays": 0
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "format": 1,
+  "jobs": [
+    "email-verification"
+  ],
+  "profiles": [
+    {
+      "id": "any",
+      "load": {},
+      "cost": "none",
+      "regions": [
+        "any"
+      ],
+      "compliance": []
+    }
+  ],
+  "notes": "No provider of its own: codes are kept by the records store and the email is sent by the application's mail component, whose own profiles carry the limits."
+}
